@@ -24,9 +24,11 @@ class Logger extends EventEmitter {
   }
 
   error(message, error = null) {
+    const errorDetails = error?.message || error;
+    const fullMessage = errorDetails ? `${message} ${errorDetails}` : message;
     const logEntry = {
-      message,
-      error: error?.message || error,
+      message: fullMessage,
+      error: errorDetails,
       timestamp: new Date().toISOString(),
       level: "error",
     };

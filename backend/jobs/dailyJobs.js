@@ -15,10 +15,8 @@ import {
 } from "../models/resultStore.js";
 import { logEmitter } from "../utils/logger.js";
 
-// Schedule a job to run every day at 23:00 (11:00 PM)
-// The cron expression "0 23 * * *" means: At minute 0 past hour 23.
-// You can adjust this to any specific time you need (e.g., "0 18 * * *" for 6:00 PM).
-cron.schedule("0 23 * * *", async () => {
+// Main function to run the commits fetch and check
+export async function runDailyCheckJob() {
   logEmitter.log("⏰ Running daily scheduled job to fetch commits...");
   const repos = getRepositories();
 
@@ -29,12 +27,13 @@ cron.schedule("0 23 * * *", async () => {
 
   for (const repo of repos) {
     const repoUrl = repo.repoUrl;
+    const repoToken = repo.token;
     try {
       const [owner, repoName] = repoUrl.split("/").slice(-2);
       const repoFullName = `${owner}/${repoName}`;
       logEmitter.log(`Fetching today's commits for ${repoFullName}...`);
 
-      const commits = await fetchCommitsForToday(repoUrl);
+      const commits = await fetchCommitsForToday(repoUrl, repoToken);
 
       if (!commits || commits.length === 0) {
         logEmitter.log(`No commits found today for ${repoFullName}.`);
@@ -58,8 +57,8 @@ cron.schedule("0 23 * * *", async () => {
           logEmitter.log(`Processing commit ${sha} from ${repoFullName}`);
 
           // Fetch full commit details and patch
-          const commitDetails = await getCommitDetails(owner, repoName, sha);
-          const commitPatch = await getCommitPatch(owner, repoName, sha);
+          const commitDetails = await getCommitDetails(owner, repoName, sha, repoToken);
+          const commitPatch = await getCommitPatch(owner, repoName, sha, repoToken);
 
           // Build structured payload for AI server
           const payload = buildStructuredPayload(commitDetails, commitPatch);
@@ -73,6 +72,13 @@ cron.schedule("0 23 * * *", async () => {
             repository: repoFullName,
             result: aiResult,
             timestamp: new Date(),
+            files: commitDetails.files?.map((f) => ({
+              filename: f.filename,
+              status: f.status,
+              additions: f.additions,
+              deletions: f.deletions,
+              patch: f.patch,
+            })) || [],
           });
 
           logEmitter.success(`✓ Commit ${sha} analyzed successfully`);
@@ -101,4 +107,9 @@ cron.schedule("0 23 * * *", async () => {
     }
   }
   logEmitter.log("✅ Daily scheduled job complete.");
+}
+
+// Schedule a job to run every day at 12:10 AM (00:10)
+cron.schedule("10 0 * * *", async () => {
+  await runDailyCheckJob();
 });

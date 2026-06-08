@@ -1,58 +1,59 @@
 import express from "express";
-import { getRepositories, addRepository } from "../models/repoStore.js";
+import { getRepositories, addRepository, deleteRepository } from "../models/repoStore.js";
+import { getCommitResults } from "../models/resultStore.js";
+import { runDailyCheckJob } from "../jobs/dailyJobs.js";
 
 const router = express.Router();
 
-/*
-  Repo API quick guide
-
-  Base path: /repos (mounted in server.js)
-
-  1) Add a repository
-     POST /repos/add
-     Body: { "repoUrl": "https://github.com/owner/repo" }
-
-     Example (curl):
-     curl -X POST http://localhost:3000/repos/add \
-       -H "Content-Type: application/json" \
-       -d "{\"repoUrl\":\"https://github.com/octocat/hello-world\"}"
-
-  2) List all repositories
-     GET /repos
-
-     Example (curl):
-     curl http://localhost:3000/repos
-
-  Request flow (how request comes in):
-  Step 1: Client sends HTTP request to the backend.
-  Example line: POST /repos/add HTTP/1.1
-  Step 2: Express matches the route under /repos.
-  Example line: app.use("/repos", repoRoutes) -> router.post("/add", ...)
-  Step 3: Handler validates/parses req.body or req params.
-  Example line: const { repoUrl } = req.body
-  Step 4: Handler calls repoStore methods (addRepository/getRepositories).
-  Example line: addRepository("https://github.com/octocat/hello-world")
-  Step 5: Handler sends JSON response back to the client.
-  Example line: res.json({ message: "Repository added successfully" })
-*/
-
+// 1) Add a repository (accepts username and repoName)
 router.post("/add", (req, res) => {
-  // Step 3: Read body sent by client.
-  const { repoUrl } = req.body;
+  const { username, repoName } = req.body;
 
-  // Step 3: Validate required input.
-  if (!repoUrl) return res.status(400).json({ error: "repoUrl is required" });
+  if (!username || !repoName) {
+    return res.status(400).json({ error: "Both username and repoName are required" });
+  }
 
-  // Step 4: Save repository in the in-memory store.
-  addRepository(repoUrl);
-
-  // Step 5: Return success response.
-  res.json({ message: "Repository added successfully" });
+  try {
+    const newRepo = addRepository(username, repoName);
+    res.json({ message: "Repository added successfully", repository: newRepo });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
+// 2) List all repositories
 router.get("/", (req, res) => {
-  // Step 4 + 5: Read all repositories and return them as JSON.
   res.json(getRepositories());
+});
+
+// 3) Delete a repository by ID
+router.delete("/:id", (req, res) => {
+  const { id } = req.params;
+  try {
+    deleteRepository(id);
+    res.json({ message: "Repository deleted successfully" });
+  } catch (error) {
+    res.status(404).json({ error: error.message });
+  }
+});
+
+// 4) Get all commit analysis results
+router.get("/results", (req, res) => {
+  res.json(getCommitResults());
+});
+
+// 5) Manually trigger the daily check job immediately
+router.post("/trigger", (req, res) => {
+  // Run it in the background so the HTTP response is returned immediately
+  runDailyCheckJob()
+    .then(() => {
+      console.log("Manual check job finished successfully.");
+    })
+    .catch((err) => {
+      console.error("Error running manual check job:", err);
+    });
+
+  res.status(202).json({ message: "Check triggered. Follow progress on the Live Feed." });
 });
 
 export default router;

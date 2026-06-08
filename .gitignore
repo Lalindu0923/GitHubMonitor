@@ -26,3 +26,7 @@ build/
 # Vite cache
 frontend/.vite/
 .vite/
+
+# Data files
+*.csv
+backend/data/

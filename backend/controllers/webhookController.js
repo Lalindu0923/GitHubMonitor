@@ -4,6 +4,7 @@ import {
   buildStructuredPayload,
 } from "../services/aiService.js";
 import { saveCommitResult, isAlreadyProcessed } from "../models/resultStore.js";
+import { getRepositories } from "../models/repoStore.js";
 import { logEmitter } from "../utils/logger.js";
 
 export async function handleGitHubPush(req, res) {
@@ -48,6 +49,15 @@ export async function handleGitHubPush(req, res) {
       commitsReceived: commits.length,
     });
 
+    // Resolve repository credentials
+    const repos = getRepositories();
+    const matchingRepo = repos.find(
+      (r) =>
+        r.username.toLowerCase() === owner.toLowerCase() &&
+        r.repoName.toLowerCase() === repoName.toLowerCase()
+    );
+    const repoToken = matchingRepo ? matchingRepo.token : null;
+
     // Process commits in the background
     (async () => {
       try {
@@ -66,8 +76,8 @@ export async function handleGitHubPush(req, res) {
             logEmitter.log(`Processing commit ${sha} from ${repoFullName}`);
 
             // Fetch full commit details and patch
-            const commitDetails = await getCommitDetails(owner, repoName, sha);
-            const commitPatch = await getCommitPatch(owner, repoName, sha);
+            const commitDetails = await getCommitDetails(owner, repoName, sha, repoToken);
+            const commitPatch = await getCommitPatch(owner, repoName, sha, repoToken);
 
             // Build structured payload for AI server
             const payload = buildStructuredPayload(commitDetails, commitPatch);
@@ -81,6 +91,13 @@ export async function handleGitHubPush(req, res) {
               repository: repoFullName,
               result: aiResult,
               timestamp: new Date(),
+              files: commitDetails.files?.map((f) => ({
+                filename: f.filename,
+                status: f.status,
+                additions: f.additions,
+                deletions: f.deletions,
+                patch: f.patch,
+              })) || [],
             });
 
             results.push({
