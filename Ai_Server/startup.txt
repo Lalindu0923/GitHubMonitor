@@ -1,0 +1,10 @@
+python -m venv venv  
+venv\Scripts\activate    
+pip install fastapi uvicorn python-dotenv   
+uvicorn app.main:app --reload --port 8000
+
+gemini api key == AIzaSyD5imYz1NxTx5RkzUcjjLvS0sspvHVknBY
+
+
+
+ollama run qwen3:8b

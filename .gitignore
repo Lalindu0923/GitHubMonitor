@@ -1,0 +1,28 @@
+# Dependencies
+**/node_modules/
+
+# Environment secrets
+**/.env
+**/.env.*
+Ai_Server/venv/
+venv/
+
+# Python artifacts
+**/__pycache__/
+**/*.pyc
+
+# Logs
+**/*.log
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Build files
+dist/
+build/
+
+# Vite cache
+frontend/.vite/
+.vite/

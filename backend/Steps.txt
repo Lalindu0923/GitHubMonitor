@@ -1,0 +1,38 @@
+npm init -y
+npm install express axios dotenv cors node-cron
+
+	Package	Purpose
+	express	Backend server 🚀
+	axios	Call APIs (GitHub + AI server) 🌐
+	dotenv	Store secrets safely 🔐
+	cors	Allow frontend access 🔄
+	node-cron	Scheduler (your 11PM job ⏰)
+
+
+winget install -e --id Ngrok.Ngrok
+	Ngrok is a tool that lets you expose your local computer/server to the internet safely and quickly.
+	normal = localhost:3000
+	with Ngrok = https://abc123.ngrok-free.app
+	Now anyone on the internet can access your local app using that URL.
+	*Ngrok creates a secure tunnel between:
+		Your local machine (localhost)
+		The public internet
+
+	localhost:3000/webhook ==> https://xyz.ngrok-free.app/webhook
+
+Downloaded from Ngrok Official Website.
+
+PS D:\SLT\AI\GitHubMonitor\backend> ngrok config add-authtoken 3DPCpqXbJA9RSmSRYUFX5Gro4Ya_45Peku5dgJ7Y5jYB9oF4N
+Authtoken saved to configuration file: C:\Users\Lalindu S Jayasinghe\AppData\Local\ngrok\ngrok.yml
+PS D:\SLT\AI\GitHubMonitor\backend> 
+
+npm start = start the backend
+ngrok http 3000 = start the tunnel
+	Forwarding                    https://slighting-customize-causing.ngrok-free.dev -> http://localhost:3000 
+
+create the branch = git checkout -b
+
+
+git push origin backend
+
+git commit -m "your commit message here"
