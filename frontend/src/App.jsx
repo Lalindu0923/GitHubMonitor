@@ -336,6 +336,11 @@ function App() {
                               <span className="stats-pill files">{aiResult.files_changed || commitData.files?.length || 0} files</span>
                               <span className="stats-pill additions">+{aiResult.additions || 0}</span>
                               <span className="stats-pill deletions">-{aiResult.deletions || 0}</span>
+                              {aiResult.provider && (
+                                <span className={`stats-pill model-${aiResult.provider.toLowerCase()}`}>
+                                  {aiResult.provider.toLowerCase() === 'gemini' ? 'Gemini' : 'Ollama'}
+                                </span>
+                              )}
                             </div>
                             
                             <div className={`score-badge ${getScoreColor(aiResult.score)}`}>
@@ -395,6 +400,11 @@ function App() {
                         </a>
                       </div>
                       <span className="analysed-at">Audited on {formatDate(selectedCommit.data.timestamp || selectedCommit.id)}</span>
+                      {selectedCommit.data.result.provider && (
+                        <div className="model-info-row" style={{ marginTop: '6px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                          Audited by: <strong style={{ color: 'var(--accent-color)' }}>{selectedCommit.data.result.provider.toLowerCase() === 'gemini' ? 'Gemini API' : 'Ollama Local'}</strong> ({selectedCommit.data.result.model})
+                        </div>
+                      )}
                     </div>
 
                     <div className="audit-metrics-row">
@@ -607,9 +617,9 @@ function App() {
               <h2>Scheduler Status</h2>
               <div className="scheduler-status-row">
                 <span className="status-label">Cron Job Schedule:</span>
-                <span className="cron-badge">10 0 * * *</span>
+                <span className="cron-badge">15 0 * * *</span>
               </div>
-              <p className="scheduler-run-time">Runs automatically every day at <strong>12:10 AM (00:10)</strong>.</p>
+              <p className="scheduler-run-time">Runs automatically every day at <strong>12:15 AM (00:15)</strong>.</p>
               
               <div className="manual-run-block">
                 <h3>Trigger Scan Manually</h3>

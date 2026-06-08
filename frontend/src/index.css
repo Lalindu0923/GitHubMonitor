@@ -443,6 +443,9 @@ h1 {
 .stats-pill.files { background-color: rgba(255, 255, 255, 0.03); color: var(--text-secondary); }
 .stats-pill.additions { background-color: rgba(16, 185, 129, 0.08); color: var(--success-color); }
 .stats-pill.deletions { background-color: rgba(239, 68, 68, 0.08); color: var(--error-color); }
+.stats-pill.model-gemini { background-color: rgba(59, 130, 246, 0.08); color: var(--accent-color); border: 1px solid rgba(59, 130, 246, 0.15); }
+.stats-pill.model-llama { background-color: rgba(139, 92, 246, 0.08); color: #a855f7; border: 1px solid rgba(139, 92, 246, 0.15); }
+.stats-pill.model-openai { background-color: rgba(16, 185, 129, 0.08); color: var(--success-color); border: 1px solid rgba(16, 185, 129, 0.15); }
 
 /* Score badge */
 .score-badge {
