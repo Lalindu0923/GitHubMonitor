@@ -106,8 +106,10 @@ def _extract_json_from_text(text: str) -> dict[str, Any] | None:
 
 
 def _call_llm(prompt: str) -> tuple[dict[str, Any] | None, str | None, str | None]:
+    provider = os.getenv("LLM_PROVIDER", "").lower()
     gemini_api_key = os.getenv("GEMINI_API_KEY")
-    if gemini_api_key:
+
+    if (provider == "gemini") or (not provider and gemini_api_key):
         provider = "gemini"
         model_name = os.getenv("MODEL") or "gemini-2.5-flash"
         try:
@@ -125,7 +127,10 @@ def _call_llm(prompt: str) -> tuple[dict[str, Any] | None, str | None, str | Non
             print(error_msg)
             return {"summary": error_msg}, provider, model_name
 
-    provider = os.getenv("LLM_PROVIDER", "openai").lower()
+    # Otherwise fallback to openai/llama
+    if not provider:
+        provider = "openai"
+
     model = os.getenv("LLM_MODEL") or os.getenv("MODEL") or "gpt-4o-mini"
     api_key = os.getenv("OPENAI_API_KEY") or os.getenv("LLM_API_KEY") or ""
 
@@ -157,7 +162,9 @@ def _call_llm(prompt: str) -> tuple[dict[str, Any] | None, str | None, str | Non
     )
 
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
+        # Note: Set timeout to 120 seconds for Ollama local runs as model loading might take time
+        timeout = 120 if provider == "llama" else 30
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             raw_data = response.read().decode("utf-8")
         parsed = json.loads(raw_data)
         content = parsed["choices"][0]["message"]["content"]
@@ -165,7 +172,8 @@ def _call_llm(prompt: str) -> tuple[dict[str, Any] | None, str | None, str | Non
         if llm_json is not None:
             return llm_json, provider, model
         return {"summary": content}, provider, model
-    except (urllib.error.URLError, urllib.error.HTTPError, KeyError, IndexError, json.JSONDecodeError):
+    except (urllib.error.URLError, urllib.error.HTTPError, KeyError, IndexError, json.JSONDecodeError) as e:
+        print(f"Error calling LLM (provider={provider}): {e}")
         return None, provider, model
 
 

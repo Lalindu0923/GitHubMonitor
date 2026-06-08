@@ -617,9 +617,9 @@ function App() {
               <h2>Scheduler Status</h2>
               <div className="scheduler-status-row">
                 <span className="status-label">Cron Job Schedule:</span>
-                <span className="cron-badge">15 0 * * *</span>
+                <span className="cron-badge">0 23 * * *</span>
               </div>
-              <p className="scheduler-run-time">Runs automatically every day at <strong>12:15 AM (00:15)</strong>.</p>
+              <p className="scheduler-run-time">Runs automatically every day at <strong>11:00 PM (23:00)</strong>.</p>
               
               <div className="manual-run-block">
                 <h3>Trigger Scan Manually</h3>

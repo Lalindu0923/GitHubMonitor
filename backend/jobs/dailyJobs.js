@@ -109,7 +109,7 @@ export async function runDailyCheckJob() {
   logEmitter.log("✅ Daily scheduled job complete.");
 }
 
-// Schedule a job to run every day at 12:15 AM (00:15)
-cron.schedule("15 0 * * *", async () => {
+// Schedule a job to run every day at 11:00 PM (23:00)
+cron.schedule("0 23 * * *", async () => {
   await runDailyCheckJob();
 });
