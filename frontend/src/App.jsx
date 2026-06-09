@@ -49,6 +49,18 @@ function App() {
   const [history, setHistory] = useState([]);
   const [repositories, setRepositories] = useState([]);
   const [selectedCommit, setSelectedCommit] = useState(null);
+  const [terminalState, setTerminalState] = useState('normal'); // 'normal', 'minimized', 'maximized', 'hidden'
+  
+  // ESC key to restore terminal from maximized state
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && terminalState === 'maximized') {
+        setTerminalState('normal');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [terminalState]);
   
   // Form Inputs
   const [githubUsername, setGithubUsername] = useState('');
@@ -264,37 +276,63 @@ function App() {
       {activeTab === 'live' ? (
         /* LIVE FEED PAGE */
         <div className="tab-content">
-          <div className="terminal-grid">
-            {/* Log Stream Terminal */}
-            <div className="terminal-container">
-              <div className="terminal-header">
-                <div className="terminal-controls">
-                  <div className="control-btn close"></div>
-                  <div className="control-btn minimize"></div>
-                  <div className="control-btn maximize"></div>
+          {terminalState !== 'hidden' && (
+            <div className="terminal-grid">
+              {/* Log Stream Terminal */}
+              <div className={`terminal-container ${terminalState}`}>
+                <div className="terminal-header">
+                  <div className="terminal-controls">
+                    <button 
+                      className="control-btn close" 
+                      onClick={() => setTerminalState('hidden')}
+                      title="Hide Terminal"
+                      aria-label="Hide Terminal"
+                    ></button>
+                    <button 
+                      className="control-btn minimize" 
+                      onClick={() => setTerminalState(terminalState === 'minimized' ? 'normal' : 'minimized')}
+                      title={terminalState === 'minimized' ? 'Restore Terminal' : 'Minimize Terminal'}
+                      aria-label="Minimize Terminal"
+                    ></button>
+                    <button 
+                      className="control-btn maximize" 
+                      onClick={() => setTerminalState(terminalState === 'maximized' ? 'normal' : 'maximized')}
+                      title={terminalState === 'maximized' ? 'Restore Terminal' : 'Maximize Terminal (Esc)'}
+                      aria-label="Maximize Terminal"
+                    ></button>
+                  </div>
+                  <div className="terminal-title">live_logs@githubmonitor ~ sse-client</div>
+                  <div className="status-indicator">
+                    {isConnected ? 'Live' : 'Reconnecting...'}
+                    <div className={`status-dot ${isConnected ? 'connected' : 'disconnected'}`}></div>
+                  </div>
                 </div>
-                <div className="terminal-title">live_logs@githubmonitor ~ sse-client</div>
-                <div className="status-indicator">
-                  {isConnected ? 'Live' : 'Reconnecting...'}
-                  <div className={`status-dot ${isConnected ? 'connected' : 'disconnected'}`}></div>
-                </div>
-              </div>
 
-              <div className="terminal-body">
-                {logs.length === 0 ? (
-                  <div className="log-empty">Waiting for events from GitHub webhooks or scheduler...</div>
-                ) : (
-                  logs.map((log, index) => (
-                    <div key={index} className="log-entry">
-                      <span className="log-time">[{formatTime(log.timestamp)}]</span>
-                      <span className={`log-level-${log.level || 'info'}`}>{log.message}</span>
-                    </div>
-                  ))
-                )}
-                <div ref={terminalEndRef} />
+                <div className="terminal-body">
+                  {logs.length === 0 ? (
+                    <div className="log-empty">Waiting for events from GitHub webhooks or scheduler...</div>
+                  ) : (
+                    logs.map((log, index) => (
+                      <div key={index} className="log-entry">
+                        <span className="log-time">[{formatTime(log.timestamp)}]</span>
+                        <span className={`log-level-${log.level || 'info'}`}>{log.message}</span>
+                      </div>
+                    ))
+                  )}
+                  <div ref={terminalEndRef} />
+                </div>
               </div>
             </div>
-          </div>
+          )}
+
+          {terminalState === 'hidden' && (
+            <div className="terminal-restore-bar">
+              <button className="restore-terminal-btn" onClick={() => setTerminalState('normal')}>
+                <span className="live-pulse-dot active"></span>
+                Show Live Logs Terminal
+              </button>
+            </div>
+          )}
 
           <div className="live-body-layout">
             {/* Analysis History Feed */}
