@@ -10,6 +10,7 @@ venv/
 # Python artifacts
 **/__pycache__/
 **/*.pyc
+Ai_Server/startup.txt
 
 # Logs
 **/*.log
