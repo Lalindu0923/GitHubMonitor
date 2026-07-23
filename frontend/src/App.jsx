@@ -27,16 +27,22 @@ function DiffFile({ file }) {
           <span className="deletions">-{file.deletions}</span>
         </span>
       </div>
-      {isExpanded && file.patch && (
-        <pre className="diff-patch">
-          {file.patch.split('\n').map((line, lIdx) => {
-            let className = 'diff-line';
-            if (line.startsWith('+')) className += ' diff-line-add';
-            else if (line.startsWith('-')) className += ' diff-line-delete';
-            else if (line.startsWith('@@')) className += ' diff-line-info';
-            return <div key={lIdx} className={className}>{line}</div>;
-          })}
-        </pre>
+      {isExpanded && (
+        file.patch ? (
+          <pre className="diff-patch">
+            {file.patch.split('\n').map((line, lIdx) => {
+              let className = 'diff-line';
+              if (line.startsWith('+')) className += ' diff-line-add';
+              else if (line.startsWith('-')) className += ' diff-line-delete';
+              else if (line.startsWith('@@')) className += ' diff-line-info';
+              return <div key={lIdx} className={className}>{line}</div>;
+            })}
+          </pre>
+        ) : (
+          <div className="no-patch-info" style={{ padding: '10px 16px', fontSize: '0.82rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+            No code diff patch available for this file (e.g. binary file or initial commit).
+          </div>
+        )
       )}
     </div>
   );
@@ -520,13 +526,16 @@ function App() {
                   {/* Code changes list */}
                   <div className="diff-viewer-container">
                     <h2>Changed Files & Code Patches</h2>
-                    {selectedCommit.files && selectedCommit.files.length > 0 ? (
-                      selectedCommit.files.map((file, idx) => (
-                        <DiffFile key={idx} file={file} />
-                      ))
-                    ) : (
-                      <div className="no-diffs-fallback">No file patches saved for this commit.</div>
-                    )}
+                    {(() => {
+                      const files = selectedCommit.data?.files || selectedCommit.files || [];
+                      return files.length > 0 ? (
+                        files.map((file, idx) => (
+                          <DiffFile key={idx} file={file} />
+                        ))
+                      ) : (
+                        <div className="no-diffs-fallback">No file patches saved for this commit.</div>
+                      );
+                    })()}
                   </div>
                 </div>
               ) : (
@@ -655,9 +664,9 @@ function App() {
               <h2>Scheduler Status</h2>
               <div className="scheduler-status-row">
                 <span className="status-label">Cron Job Schedule:</span>
-                <span className="cron-badge">0 23 * * *</span>
+                <span className="cron-badge">58 23 * * *</span>
               </div>
-              <p className="scheduler-run-time">Runs automatically every day at <strong>11:00 PM (23:00)</strong>.</p>
+              <p className="scheduler-run-time">Runs automatically every day at <strong>11:58 PM (23:58)</strong>.</p>
               
               <div className="manual-run-block">
                 <h3>Trigger Scan Manually</h3>

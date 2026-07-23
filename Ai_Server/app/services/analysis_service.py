@@ -172,7 +172,7 @@ def _call_llm(prompt: str) -> tuple[dict[str, Any] | None, str | None, str | Non
         if llm_json is not None:
             return llm_json, provider, model
         return {"summary": content}, provider, model
-    except (urllib.error.URLError, urllib.error.HTTPError, KeyError, IndexError, json.JSONDecodeError) as e:
+    except Exception as e:
         print(f"Error calling LLM (provider={provider}): {e}")
         return None, provider, model
 

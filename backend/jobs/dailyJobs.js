@@ -18,7 +18,7 @@ import { logEmitter } from "../utils/logger.js";
 // Main function to run the commits fetch and check
 export async function runDailyCheckJob() {
   logEmitter.log("⏰ Running daily scheduled job to fetch commits...");
-  const repos = getRepositories();
+  const repos = await getRepositories();
 
   if (repos.length === 0) {
     logEmitter.log("No repositories configured for daily check.");
@@ -48,7 +48,7 @@ export async function runDailyCheckJob() {
         const sha = commitObj.sha;
 
         // Skip if already processed (e.g. by a webhook or previous run)
-        if (isAlreadyProcessed(sha)) {
+        if (await isAlreadyProcessed(sha)) {
           logEmitter.log(`Commit ${sha} already processed, skipping.`);
           continue;
         }
@@ -67,7 +67,7 @@ export async function runDailyCheckJob() {
           const aiResult = await analyzeCommitWithLLM(payload);
 
           // Save result
-          saveCommitResult({
+          await saveCommitResult({
             sha,
             repository: repoFullName,
             result: aiResult,
@@ -109,7 +109,7 @@ export async function runDailyCheckJob() {
   logEmitter.log("✅ Daily scheduled job complete.");
 }
 
-// Schedule a job to run every day at 11:00 PM (23:00)
-cron.schedule("0 23 * * *", async () => {
+// Schedule a job to run every day at 2:30 PM (14:30)
+cron.schedule("30 14 * * *", async () => {
   await runDailyCheckJob();
 });

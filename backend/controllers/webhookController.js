@@ -50,7 +50,7 @@ export async function handleGitHubPush(req, res) {
     });
 
     // Resolve repository credentials
-    const repos = getRepositories();
+    const repos = await getRepositories();
     const matchingRepo = repos.find(
       (r) =>
         r.username.toLowerCase() === owner.toLowerCase() &&
@@ -67,7 +67,7 @@ export async function handleGitHubPush(req, res) {
           const sha = commit.id;
 
           // Skip if already processed
-          if (isAlreadyProcessed(sha)) {
+          if (await isAlreadyProcessed(sha)) {
             logEmitter.log(`Commit ${sha} already processed, skipping.`);
             continue;
           }
@@ -86,7 +86,7 @@ export async function handleGitHubPush(req, res) {
             const aiResult = await analyzeCommitWithLLM(payload);
 
             // Save result
-            saveCommitResult({
+            await saveCommitResult({
               sha,
               repository: repoFullName,
               result: aiResult,

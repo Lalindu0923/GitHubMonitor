@@ -6,7 +6,7 @@ import { runDailyCheckJob } from "../jobs/dailyJobs.js";
 const router = express.Router();
 
 // 1) Add a repository (accepts username and repoName)
-router.post("/add", (req, res) => {
+router.post("/add", async (req, res) => {
   const { username, repoName } = req.body;
 
   if (!username || !repoName) {
@@ -14,7 +14,7 @@ router.post("/add", (req, res) => {
   }
 
   try {
-    const newRepo = addRepository(username, repoName);
+    const newRepo = await addRepository(username, repoName);
     res.json({ message: "Repository added successfully", repository: newRepo });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -22,15 +22,20 @@ router.post("/add", (req, res) => {
 });
 
 // 2) List all repositories
-router.get("/", (req, res) => {
-  res.json(getRepositories());
+router.get("/", async (req, res) => {
+  try {
+    const repos = await getRepositories();
+    res.json(repos);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // 3) Delete a repository by ID
-router.delete("/:id", (req, res) => {
+router.delete("/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    deleteRepository(id);
+    await deleteRepository(id);
     res.json({ message: "Repository deleted successfully" });
   } catch (error) {
     res.status(404).json({ error: error.message });
@@ -38,8 +43,13 @@ router.delete("/:id", (req, res) => {
 });
 
 // 4) Get all commit analysis results
-router.get("/results", (req, res) => {
-  res.json(getCommitResults());
+router.get("/results", async (req, res) => {
+  try {
+    const results = await getCommitResults();
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // 5) Manually trigger the daily check job immediately

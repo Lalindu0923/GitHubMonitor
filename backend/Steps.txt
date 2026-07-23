@@ -36,3 +36,6 @@ create the branch = git checkout -b
 git push origin backend
 
 git commit -m "your commit message here"
+
+npm install mysql2 dotenv
+npm audit
