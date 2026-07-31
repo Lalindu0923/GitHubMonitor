@@ -235,16 +235,136 @@ export async function getRepositories() {
     return fileRepos;
   }
 }
+// Helper to write/update repository in the CSV file
+function saveOrUpdateRepoInCsv(username, repoName, token, projectName = null) {
+  try {
+    if (!fs.existsSync(CSV_PATH)) {
+      const header = "project_name,repo_name,repo_access_token\n";
+      fs.writeFileSync(CSV_PATH, header, "utf8");
+    }
+
+    const csvContent = fs.readFileSync(CSV_PATH, "utf8");
+    const lines = csvContent.split(/\r?\n/);
+    const updatedLines = [];
+    let found = false;
+
+    if (lines.length > 0) {
+      updatedLines.push(lines[0]); // Header row
+    }
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      const cols = line.split(",");
+      const rowRepoNameRaw = cols[1]?.trim();
+
+      const parsed = parseRepoName(rowRepoNameRaw);
+      if (parsed &&
+          parsed.username.toLowerCase() === username.toLowerCase() &&
+          parsed.repoName.toLowerCase() === repoName.toLowerCase()) {
+        cols[2] = token || "";
+        updatedLines.push(cols.join(","));
+        found = true;
+        console.log(`[CSV Sync] Updated token for ${username}/${repoName} in CSV.`);
+      } else {
+        updatedLines.push(line);
+      }
+    }
+
+    if (!found) {
+      const newProjName = projectName || repoName;
+      const newRepoName = `${username}/${repoName}`;
+      const newRow = `${newProjName},${newRepoName},${token || ""}`;
+      updatedLines.push(newRow);
+      console.log(`[CSV Sync] Added new repo ${username}/${repoName} to CSV.`);
+    }
+
+    fs.writeFileSync(CSV_PATH, updatedLines.join("\n") + "\n", "utf8");
+  } catch (error) {
+    console.error("Error writing to CSV:", error);
+  }
+}
+
+// Helper to delete a repository from the CSV file
+function deleteRepoFromCsv(username, repoName) {
+  try {
+    if (!fs.existsSync(CSV_PATH)) return;
+
+    const csvContent = fs.readFileSync(CSV_PATH, "utf8");
+    const lines = csvContent.split(/\r?\n/);
+    const updatedLines = [];
+
+    if (lines.length > 0) {
+      updatedLines.push(lines[0]); // Header row
+    }
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      const cols = line.split(",");
+      const rowRepoNameRaw = cols[1]?.trim();
+
+      const parsed = parseRepoName(rowRepoNameRaw);
+      if (parsed &&
+          parsed.username.toLowerCase() === username.toLowerCase() &&
+          parsed.repoName.toLowerCase() === repoName.toLowerCase()) {
+        console.log(`[CSV Sync] Removed ${username}/${repoName} from CSV.`);
+      } else {
+        updatedLines.push(line);
+      }
+    }
+
+    fs.writeFileSync(CSV_PATH, updatedLines.join("\n") + "\n", "utf8");
+  } catch (error) {
+    console.error("Error deleting from CSV:", error);
+  }
+}
 
 export async function addRepository(username, repoName, token = null) {
   const cleanUsername = username.trim();
   const cleanRepoName = repoName.trim();
   const repoUrl = `https://github.com/${cleanUsername}/${cleanRepoName}`;
 
-  // Check duplicate in Database
+  // Check duplicate in Database; if exists, update token instead of throwing error
   const exists = await getReposFromDatabaase(cleanUsername, cleanRepoName);
   if (exists) {
-    throw new Error("Repository already exists in the tracking list.");
+    // Update the token in MySQL Database
+    await pool.execute(
+      `UPDATE repositories SET token = ? WHERE github_user = ? AND repo_name = ?`,
+      [token || null, cleanUsername, cleanRepoName]
+    );
+
+    // Sync with JSON file
+    const repos = readReposFromFile();
+    const existingIndex = repos.findIndex(
+      (r) =>
+        r.username.toLowerCase() === cleanUsername.toLowerCase() &&
+        r.repoName.toLowerCase() === cleanRepoName.toLowerCase()
+    );
+    let projectName = null;
+    if (existingIndex !== -1) {
+      repos[existingIndex].token = token || null;
+      projectName = repos[existingIndex].projectName;
+      writeReposToFile(repos);
+    }
+
+    // Sync with CSV
+    saveOrUpdateRepoInCsv(cleanUsername, cleanRepoName, token, projectName);
+
+    // Fallback if JSON file didn't have it but DB did
+    const [rows] = await pool.execute(
+      `SELECT * FROM repositories WHERE github_user = ? AND repo_name = ?`,
+      [cleanUsername, cleanRepoName]
+    );
+    return {
+      id: rows[0]?.id || Date.now(),
+      username: cleanUsername,
+      repoName: cleanRepoName,
+      repoUrl,
+      token
+    };
   }
 
   const newRepo = {
@@ -269,6 +389,9 @@ export async function addRepository(username, repoName, token = null) {
   });
   writeReposToFile(repos);
 
+  // Sync with CSV
+  saveOrUpdateRepoInCsv(cleanUsername, cleanRepoName, token, cleanRepoName);
+
   return newRepo;
 }
 
@@ -291,6 +414,9 @@ export async function deleteRepository(id) {
     (r) => !(r.username.toLowerCase() === github_user.toLowerCase() && r.repoName.toLowerCase() === repo_name.toLowerCase())
   );
   writeReposToFile(updatedRepos);
+
+  // Sync with CSV
+  deleteRepoFromCsv(github_user, repo_name);
 
   return true;
 }

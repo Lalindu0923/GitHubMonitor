@@ -1,30 +1,26 @@
 import { useState, useEffect, useRef } from 'react';
 
 function DiffFile({ file }) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <div className="diff-file">
+    <div className={`diff-file ${isExpanded ? 'expanded' : ''}`}>
       <div 
         className="diff-header" 
         onClick={() => setIsExpanded(!isExpanded)}
-        style={{ cursor: 'pointer', userSelect: 'none' }}
-        title="Click to expand/collapse"
+        title="Click to toggle code changes"
       >
         <span className="diff-filename">
-          <span style={{ 
-            marginRight: '8px', 
-            display: 'inline-block', 
-            transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', 
-            transition: 'transform 0.2s',
-            fontSize: '0.8em'
-          }}>▶</span>
+          <span className="diff-caret">▶</span>
           {file.filename}
         </span>
         <span className="diff-stats">
           <span className="diff-status-badge">{file.status}</span>
           <span className="additions">+{file.additions}</span>
           <span className="deletions">-{file.deletions}</span>
+          <span className="diff-action-btn">
+            {isExpanded ? 'Hide Code' : 'View Code'}
+          </span>
         </span>
       </div>
       {isExpanded && (
@@ -39,7 +35,7 @@ function DiffFile({ file }) {
             })}
           </pre>
         ) : (
-          <div className="no-patch-info" style={{ padding: '10px 16px', fontSize: '0.82rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+          <div className="no-patch-info" style={{ padding: '12px 16px', fontSize: '0.82rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
             No code diff patch available for this file (e.g. binary file or initial commit).
           </div>
         )
@@ -71,10 +67,18 @@ function App() {
   // Form Inputs
   const [githubUsername, setGithubUsername] = useState('');
   const [repoName, setRepoName] = useState('');
+  const [githubToken, setGithubToken] = useState('');
   const [formStatus, setFormStatus] = useState({ status: 'idle', message: '' });
   const [triggerStatus, setTriggerStatus] = useState({ status: 'idle', message: '' });
+  const [showChangedFiles, setShowChangedFiles] = useState(false);
 
-  const terminalEndRef = useRef(null);
+  const isExistingRepo = repositories.some(
+    (r) =>
+      r.username.toLowerCase() === githubUsername.trim().toLowerCase() &&
+      r.repoName.toLowerCase() === repoName.trim().toLowerCase()
+  );
+
+  const terminalBodyRef = useRef(null);
 
   // Fetch repositories from backend
   const fetchRepositories = async () => {
@@ -102,30 +106,45 @@ function App() {
     }
   };
 
-  // Add a new repository (sends separate username and repoName)
+  // Add a new repository (sends username, repoName, and token)
   const handleAddRepo = async (e) => {
     e.preventDefault();
     const username = githubUsername.trim();
     const name = repoName.trim();
+    const token = githubToken.trim();
     if (!username || !name) return;
 
-    setFormStatus({ status: 'loading', message: 'Saving repository...' });
+    const isUpdating = repositories.some(
+      (r) =>
+        r.username.toLowerCase() === username.toLowerCase() &&
+        r.repoName.toLowerCase() === name.toLowerCase()
+    );
+
+    setFormStatus({
+      status: 'loading',
+      message: isUpdating ? 'Updating access token...' : 'Saving repository...'
+    });
+
     try {
       const response = await fetch('http://localhost:3000/repos/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, repoName: name }),
+        body: JSON.stringify({ username, repoName: name, token: token || null }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to add repository');
+        throw new Error(data.error || 'Failed to save repository');
       }
 
-      setFormStatus({ status: 'success', message: 'Repository saved to JSON!' });
+      setFormStatus({
+        status: 'success',
+        message: isUpdating ? 'Access token updated successfully!' : 'Repository saved!'
+      });
       setGithubUsername('');
       setRepoName('');
+      setGithubToken('');
       fetchRepositories();
       
       setTimeout(() => setFormStatus({ status: 'idle', message: '' }), 3000);
@@ -222,9 +241,11 @@ function App() {
     };
   }, []);
 
-  // Auto-scroll terminal to bottom
+  // Auto-scroll terminal to bottom inside its container (prevents window scrolling)
   useEffect(() => {
-    terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (terminalBodyRef.current) {
+      terminalBodyRef.current.scrollTop = terminalBodyRef.current.scrollHeight;
+    }
   }, [logs]);
 
   const formatTime = (isoString) => {
@@ -314,7 +335,7 @@ function App() {
                   </div>
                 </div>
 
-                <div className="terminal-body">
+                <div className="terminal-body" ref={terminalBodyRef}>
                   {logs.length === 0 ? (
                     <div className="log-empty">Waiting for events from GitHub webhooks or scheduler...</div>
                   ) : (
@@ -325,7 +346,6 @@ function App() {
                       </div>
                     ))
                   )}
-                  <div ref={terminalEndRef} />
                 </div>
               </div>
             </div>
@@ -362,7 +382,10 @@ function App() {
                       <div 
                         key={item.id} 
                         className={`commit-card ${selectedCommit?.id === item.id ? 'active' : ''}`}
-                        onClick={() => setSelectedCommit(item)}
+                        onClick={() => {
+                          setSelectedCommit(item);
+                          setShowChangedFiles(false);
+                        }}
                       >
                         <div className="commit-card-header">
                           <span className="commit-repo">{commitData.repository}</span>
@@ -525,17 +548,55 @@ function App() {
 
                   {/* Code changes list */}
                   <div className="diff-viewer-container">
-                    <h2>Changed Files & Code Patches</h2>
-                    {(() => {
-                      const files = selectedCommit.data?.files || selectedCommit.files || [];
-                      return files.length > 0 ? (
-                        files.map((file, idx) => (
-                          <DiffFile key={idx} file={file} />
-                        ))
-                      ) : (
-                        <div className="no-diffs-fallback">No file patches saved for this commit.</div>
-                      );
-                    })()}
+                    <div className="diff-viewer-header">
+                      <h2>Changed Files & Code Patches</h2>
+                      <button 
+                        className={`toggle-files-btn ${showChangedFiles ? 'active' : ''}`}
+                        onClick={() => setShowChangedFiles(!showChangedFiles)}
+                      >
+                        {showChangedFiles ? (
+                          <>
+                            <svg viewBox="0 0 24 24" width="14" height="14">
+                              <path fill="currentColor" d="M12 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0 8a5 5 0 0 1-5-5 5 5 0 0 1 5-5 5 5 0 0 1 5 5 5 5 0 0 1-5 5m0-12.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5Z"/>
+                            </svg>
+                            Hide Changed Files
+                          </>
+                        ) : (
+                          <>
+                            <svg viewBox="0 0 24 24" width="14" height="14">
+                              <path fill="currentColor" d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5ZM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5Zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3Z"/>
+                            </svg>
+                            Show Changed Files ({selectedCommit.data?.files?.length || selectedCommit.files?.length || 0})
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {showChangedFiles ? (
+                      (() => {
+                        const files = selectedCommit.data?.files || selectedCommit.files || [];
+                        return files.length > 0 ? (
+                          files.map((file, idx) => (
+                            <DiffFile key={idx} file={file} />
+                          ))
+                        ) : (
+                          <div className="no-diffs-fallback">No file patches saved for this commit.</div>
+                        );
+                      })()
+                    ) : (
+                      <div className="no-diffs-fallback" style={{ padding: '24px', textAlign: 'center' }}>
+                        <p style={{ fontSize: '0.88rem', marginBottom: '8px', color: 'var(--text-secondary)' }}>
+                          File details and patches are hidden by default to keep the audit report clean.
+                        </p>
+                        <button 
+                          className="toggle-files-btn"
+                          onClick={() => setShowChangedFiles(true)}
+                          style={{ margin: '0 auto' }}
+                        >
+                          Show Changed Files ({selectedCommit.data?.files?.length || selectedCommit.files?.length || 0})
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -618,7 +679,21 @@ function App() {
                     className="repo-input"
                     placeholder="e.g. Lalindu0923"
                     value={githubUsername}
-                    onChange={(e) => setGithubUsername(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setGithubUsername(val);
+                      const trimmedVal = val.trim().toLowerCase();
+                      if (trimmedVal) {
+                        const matched = repositories.find(
+                          (r) => r.username.toLowerCase() === trimmedVal
+                        );
+                        if (matched) {
+                          setRepoName(matched.repoName);
+                        }
+                      } else {
+                        setRepoName('');
+                      }
+                    }}
                     required
                   />
                 </div>
@@ -632,7 +707,30 @@ function App() {
                     placeholder="e.g. GitHubMonitor-V2"
                     value={repoName}
                     onChange={(e) => setRepoName(e.target.value)}
+                    list="repo-suggestions"
                     required
+                  />
+                  <datalist id="repo-suggestions">
+                    {repositories
+                      .filter((r) => r.username.toLowerCase() === githubUsername.trim().toLowerCase())
+                      .map((r) => (
+                        <option key={r.id} value={r.repoName} />
+                      ))}
+                  </datalist>
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="token">
+                    GitHub Access Token {isExistingRepo ? '' : '(Optional)'}
+                  </label>
+                  <input
+                    id="token"
+                    type="password"
+                    className="repo-input"
+                    placeholder={isExistingRepo ? "Enter new access token to update..." : "e.g. github_pat_..."}
+                    value={githubToken}
+                    onChange={(e) => setGithubToken(e.target.value)}
+                    required={isExistingRepo}
                   />
                 </div>
                 
@@ -645,10 +743,15 @@ function App() {
 
                 <button 
                   type="submit" 
-                  className="submit-btn" 
+                  className={`submit-btn ${isExistingRepo ? 'update-mode' : ''}`}
                   disabled={formStatus.status === 'loading'}
                 >
-                  {formStatus.status === 'loading' ? 'Saving...' : 'Add & Track Repository'}
+                  {formStatus.status === 'loading' 
+                    ? 'Saving...' 
+                    : isExistingRepo 
+                      ? 'Update Access Token' 
+                      : 'Add & Track Repository'
+                  }
                 </button>
               </form>
 

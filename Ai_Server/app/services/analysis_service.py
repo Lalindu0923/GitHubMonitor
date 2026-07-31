@@ -131,7 +131,10 @@ def _call_llm(prompt: str) -> tuple[dict[str, Any] | None, str | None, str | Non
     if not provider:
         provider = "openai"
 
-    model = os.getenv("LLM_MODEL") or os.getenv("MODEL") or "gpt-4o-mini"
+    if provider == "llama":
+        model = os.getenv("LLM_MODEL") or "qwen3:8b"
+    else:
+        model = os.getenv("LLM_MODEL") or os.getenv("MODEL") or "gpt-4o-mini"
     api_key = os.getenv("OPENAI_API_KEY") or os.getenv("LLM_API_KEY") or ""
 
     if provider == "llama":
@@ -151,27 +154,92 @@ def _call_llm(prompt: str) -> tuple[dict[str, Any] | None, str | None, str | Non
         "temperature": 0.2,
     }
 
-    request = urllib.request.Request(
-        f"{base_url.rstrip('/')}/chat/completions",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            **({"Authorization": f"Bearer {api_key}"} if api_key else {}),
-        },
-        method="POST",
-    )
-
     try:
-        # Note: Set timeout to 120 seconds for Ollama local runs as model loading might take time
+        # Note: Set timeout to 120 seconds for local runs as model loading might take time.
         timeout = 120 if provider == "llama" else 30
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            raw_data = response.read().decode("utf-8")
-        parsed = json.loads(raw_data)
-        content = parsed["choices"][0]["message"]["content"]
-        llm_json = _extract_json_from_text(content)
-        if llm_json is not None:
-            return llm_json, provider, model
-        return {"summary": content}, provider, model
+
+        candidate_requests: list[tuple[str, dict[str, Any], str]] = []
+        if provider == "llama":
+            normalized_base_url = base_url.rstrip("/")
+            if normalized_base_url.endswith("/v1"):
+                candidate_requests.append(
+                    (
+                        f"{normalized_base_url}/chat/completions",
+                        payload,
+                        "openai-compatible",
+                    )
+                )
+                candidate_requests.append(
+                    (
+                        f"{normalized_base_url[:-3]}/api/chat",
+                        {
+                            "model": model,
+                            "messages": payload["messages"],
+                            "temperature": payload["temperature"],
+                            "stream": False,
+                        },
+                        "ollama-native",
+                    )
+                )
+            else:
+                candidate_requests.append(
+                    (
+                        f"{normalized_base_url}/api/chat",
+                        {
+                            "model": model,
+                            "messages": payload["messages"],
+                            "temperature": payload["temperature"],
+                            "stream": False,
+                        },
+                        "ollama-native",
+                    )
+                )
+                candidate_requests.append(
+                    (
+                        f"{normalized_base_url}/chat/completions",
+                        payload,
+                        "openai-compatible",
+                    )
+                )
+        else:
+            candidate_requests.append(
+                (f"{base_url.rstrip('/')}/chat/completions", payload, "openai-compatible")
+            )
+
+        last_error: Exception | None = None
+        for request_url, request_payload, request_mode in candidate_requests:
+            request = urllib.request.Request(
+                request_url,
+                data=json.dumps(request_payload).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    **({"Authorization": f"Bearer {api_key}"} if api_key else {}),
+                },
+                method="POST",
+            )
+
+            try:
+                with urllib.request.urlopen(request, timeout=timeout) as response:
+                    raw_data = response.read().decode("utf-8")
+                parsed = json.loads(raw_data)
+
+                if request_mode == "ollama-native":
+                    content = parsed.get("message", {}).get("content", "")
+                else:
+                    content = parsed["choices"][0]["message"]["content"]
+
+                llm_json = _extract_json_from_text(content)
+                if llm_json is not None:
+                    return llm_json, provider, model
+                return {"summary": content}, provider, model
+            except urllib.error.HTTPError as e:
+                last_error = e
+                if provider == "llama" and e.code == 404:
+                    continue
+                raise
+
+        if last_error is not None:
+            raise last_error
     except Exception as e:
         print(f"Error calling LLM (provider={provider}): {e}")
         return None, provider, model

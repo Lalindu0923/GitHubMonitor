@@ -5,16 +5,16 @@ import { runDailyCheckJob } from "../jobs/dailyJobs.js";
 
 const router = express.Router();
 
-// 1) Add a repository (accepts username and repoName)
+// 1) Add a repository (accepts username, repoName, and optional token)
 router.post("/add", async (req, res) => {
-  const { username, repoName } = req.body;
+  const { username, repoName, token } = req.body;
 
   if (!username || !repoName) {
     return res.status(400).json({ error: "Both username and repoName are required" });
   }
 
   try {
-    const newRepo = await addRepository(username, repoName);
+    const newRepo = await addRepository(username, repoName, token || null);
     res.json({ message: "Repository added successfully", repository: newRepo });
   } catch (error) {
     res.status(400).json({ error: error.message });
